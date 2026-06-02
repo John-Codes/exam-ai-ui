@@ -1,0 +1,10 @@
+{
+  "name": "flutter-chat-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx serve -s build/web -l 3000"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}

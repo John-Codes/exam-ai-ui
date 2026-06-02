@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: flutter-chat-app
+    env: node
+    buildCommand: flutter build web --release
+    startCommand: npx serve -s build/web -l 3000
+    envVars:
+      - key: API_BASE_URL
+        value: https://fastapi-openrouter-api.onrender.com

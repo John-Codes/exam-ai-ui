@@ -1,0 +1,4 @@
+# Simple hardware-style jumper for your dev server
+server:
+  port: 8082
+  host: "localhost"

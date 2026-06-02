@@ -1,0 +1,111 @@
+# Flutter
+**/*.lock
+.dart_tool/
+.flutter-plugins-dependencies
+.flutter-plugins
+.flutter-plugins-file
+.packages
+build/
+*.iml
+*.ipr
+*.iws
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+*.desktop
+*.directory
+.Trash-*
+.nfs*
+
+# Flutter Linux build directory (generated files, should not be committed)
+linux/
+
+# Linux build artifacts
+linux/flutter/generated_plugin_registrant.cc
+linux/flutter/generated_plugins/
+linux/flutter/generated_registrant.h
+linux/flutter/generated_method_call_handler.cc
+linux/flutter/generated_method_call_handler.h
+
+# Linux ephemeral files
+linux/**/CMakeCache.txt
+linux/**/CMakeFiles/
+linux/**/Makefile
+linux/**/cmake_install.cmake
+linux/**/flutter_linux_flutter_plugins.h
+linux/**/flutter_linux_flutter_plugins.cc
+linux/**/flutter_linux_flutter_plugins.o
+linux/**/flutter_linux_flutter_plugins.d
+
+# Linux build outputs
+linux/**/*.so
+linux/**/*.a
+linux/**/*.o
+linux/**/*.d
+linux/**/*.lo
+linux/**/*.la
+linux/**/.libs/
+linux/**/libflutter_linux_flutter_plugins.so
+linux/**/libflutter_linux_flutter_plugins.a
+
+# Linux IDE/Editor files
+linux/**/.vscode/
+linux/**/.idea/
+linux/**/*.swp
+linux/**/*.swo
+linux/**/*~
+
+# Linux temporary files
+linux/**/tmp/
+linux/**/temp/
+linux/**/.cache/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# IDE
+.vscode/
+*.code-workspace
+
+# Coverage
+coverage/
+lcov.info
+
+# Generated files
+*.pb.dart
+*.g.dart
+*.freezed.dart
+*.gr.dart
+
+# Environment variables
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Local agent/tooling state
+.agents/
+.codex/
+.claude/
+.kilo/plans/1776097489513-neon-moon.md
+.kilo

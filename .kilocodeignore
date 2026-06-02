@@ -1,0 +1,25 @@
+# Ignore working feature (stable)
+lib/features/AIChatPage/
+
+# Flutter build artifacts
+build/
+.dart_tool/
+
+# platform generated code
+android/
+ios/
+
+
+# dependencies
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+
+# git
+.git/
+
+# misc
+.metadata
+*.iml
