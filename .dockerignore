@@ -1,0 +1,9 @@
+.dart_tool/
+.git/
+.idea/
+.kilo/
+android/.gradle/
+android/.kotlin/
+build/
+ios/Flutter/ephemeral/
+*.log
