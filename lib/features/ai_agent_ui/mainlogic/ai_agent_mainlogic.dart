@@ -70,11 +70,7 @@ class AiAgentMainlogic extends ChangeNotifier {
   }
 
   String _friendlyError(Object e) {
-    final text = e.toString().replaceFirst('Exception: ', '');
-    if (text.contains('XMLHttpRequest')) {
-      return 'Browser blocked the API request. The Trello API needs CORS.';
-    }
-    return text;
+    return e.toString().replaceFirst('Exception: ', '');
   }
 
   @override

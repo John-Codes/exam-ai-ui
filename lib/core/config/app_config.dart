@@ -1,4 +1,5 @@
 // lib/core/config/app_config.dart
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 //
 // Single source of truth for all API base URLs.
 //
@@ -18,21 +19,24 @@ class AppConfig {
 
   static bool get isDev => env == AppEnvironment.dev;
 
-  // AI Chat (OpenRouter) — already deployed on Render, dev URL not set yet.
-  // Comment in the dev branch and set a local URL when running locally.
-  static String get aiChatBaseUrl {
-    if (isDev) return 'http://127.0.0.1:8001';
-    return 'https://fastapi-openrouter-api.onrender.com';
-  }
+  static const String aiChatBaseUrl = 'http://100.91.34.26:8001';
+
+  static const String thorVoiceBaseUrl = 'http://100.91.34.26:8020';
+
+  static const String thorVoiceWebSocketUrl =
+      'ws://100.91.34.26:8020/v1/listen';
+
+  static String get voiceApiToken =>
+      dotenv.env['VOICE_API_TOKEN'] ??
+      const String.fromEnvironment('VOICE_API_TOKEN', defaultValue: '');
 
   static String get trelloCloneBaseUrl {
-    if (isDev) return 'http://127.0.0.1:8003';
+    if (isDev) return 'http://100.91.34.26:8003';
     return 'https://trello-clone-api-latest-2.onrender.com';
   }
 
   static String get agentChatHistoryBaseUrl {
-    if (isDev) return 'http://127.0.0.1:8004';
-    return 'http://127.0.0.1:8004';
+    return 'http://100.91.34.26:8004';
   }
 
   static const String trelloCloneApiKey =
@@ -40,4 +44,12 @@ class AppConfig {
 
   static const String agentModelName =
       String.fromEnvironment('AGENT_MODEL_NAME', defaultValue: 'local-agent');
+
+  static const String aiChatApiKey =
+      String.fromEnvironment('AI_CHAT_API_KEY', defaultValue: '');
+
+  static const bool showSubAgentUi = bool.fromEnvironment(
+    'SHOW_SUB_AGENT_UI',
+    defaultValue: false,
+  );
 }

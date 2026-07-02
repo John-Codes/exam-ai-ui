@@ -1,23 +1,26 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:aone_ui/core/config/app_config.dart';
 
 class AgentChatV3Api {
-  static const _maxRetries = 2;
-  static const _timeout = Duration(seconds: 30);
+  static const _maxRetries = 0;
+  static const _timeout = Duration(seconds: 180);
 
   static Future<Map<String, dynamic>> generateResponse({
     required String message,
+    required String userMessage,
+    required String sessionId,
     String? imageData,
   }) async {
     final imageError = _imageError(imageData);
     if (imageError != null) return {'success': false, 'error': imageError};
-    final prefs = await SharedPreferences.getInstance();
     final body = {
       'text': message,
-      'api_key': prefs.getString('apiKey') ?? '',
-      'model_name': prefs.getString('modelName') ?? '',
+      'user_message': userMessage,
+      'api_key': AppConfig.aiChatApiKey,
+      'model_name': AppConfig.agentModelName,
+      'session_id': sessionId,
       if (imageData != null && imageData.isNotEmpty) 'image_data': imageData,
     };
     return _send(body);
@@ -53,9 +56,13 @@ class AgentChatV3Api {
   static Map<String, dynamic> _ok(String body) {
     final json = jsonDecode(body) as Map<String, dynamic>;
     if (json.containsKey('response')) {
-      return {'success': true, 'response': json['response'] ?? ''};
+      return {
+        'success': json['success'] != false && json['error'] == null,
+        'response': json['response'] ?? '',
+        'error': json['error'],
+      };
     }
-    return {'success': false, 'error': 'Unexpected response: $body'};
+    return {'success': false, 'error': 'Unexpected response shape'};
   }
 
   static String? _imageError(String? data) {

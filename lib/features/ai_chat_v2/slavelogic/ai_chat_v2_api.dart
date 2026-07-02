@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aone_ui/core/config/app_config.dart';
 
 class AiChatV2Api {
@@ -29,11 +28,10 @@ class AiChatV2Api {
       }
     }
 
-    final prefs = await SharedPreferences.getInstance();
     final body = <String, dynamic>{
       'text': _appContext + message,
-      'api_key': prefs.getString('apiKey') ?? '',
-      'model_name': prefs.getString('modelName') ?? '',
+      'api_key': AppConfig.aiChatApiKey,
+      'model_name': AppConfig.agentModelName,
       if (imageData != null && imageData.isNotEmpty) 'image_data': imageData,
     };
 

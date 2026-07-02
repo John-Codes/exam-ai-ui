@@ -31,7 +31,13 @@ class SessionTile extends StatelessWidget {
         child: ListTile(
           leading: Icon(active ? Icons.chat_bubble : Icons.chat_bubble_outline),
           title: Text(session.title, maxLines: 1),
-          subtitle: Text('Updated ${session.updatedAt.toLocal()}'),
+          subtitle: Text(
+            session.summary.isEmpty
+                ? 'Updated ${session.updatedAt.toLocal()}'
+                : session.summary,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
           selected: active,
           onTap: busy ? null : onOpen,
           trailing: IconButton(

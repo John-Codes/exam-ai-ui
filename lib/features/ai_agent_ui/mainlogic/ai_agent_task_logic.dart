@@ -2,6 +2,11 @@ part of 'ai_agent_mainlogic.dart';
 
 extension AiAgentTaskLogic on AiAgentMainlogic {
   Future<void> assignAgent(AgentTask task) async {
+    messages.add(
+      AgentChatLine('Model agents are coming soon.', false),
+    );
+    pulse();
+    /*
     await runBusy(() async {
       final i = tasks.indexWhere((t) => t.id == task.id);
       if (i < 0) return;
@@ -24,10 +29,17 @@ extension AiAgentTaskLogic on AiAgentMainlogic {
         AgentChatLine('$instance assigned to ${task.title}.', false),
       );
     });
+    */
   }
 
   Future<void> chatWithTask(AgentTask task) async {
+    messages.add(
+      AgentChatLine('Task agent chat is coming soon.', false),
+    );
+    pulse();
+    /*
     await openSubAgentTask(task);
+    */
   }
 
   Future<void> moveTask(AgentTask task, String status) async {

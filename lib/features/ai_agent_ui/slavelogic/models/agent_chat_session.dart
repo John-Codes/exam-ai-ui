@@ -6,6 +6,7 @@ class AgentChatSession {
   final String modelName;
   final String? agentId;
   final String title;
+  final String summary;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -17,6 +18,7 @@ class AgentChatSession {
     required this.modelName,
     this.agentId,
     required this.title,
+    required this.summary,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -32,6 +34,7 @@ class AgentChatSession {
       modelName: '${json['model_name'] ?? 'local-agent'}',
       agentId: json['agent_id']?.toString(),
       title: '${json['title'] ?? 'Chat v3'}',
+      summary: '${json['summary'] ?? ''}',
       createdAt: created ?? DateTime.now(),
       updatedAt: updated ?? DateTime.now(),
     );

@@ -7,32 +7,29 @@ extension AiAgentChatLogic on AiAgentMainlogic {
     if (text.isEmpty && imageData == null) return;
     chatText.clear();
     chatV3.focusNode.requestFocus();
-    var userLine = AgentChatLine(
+    final userLine = AgentChatLine(
       text,
       true,
       imageData: imageData,
-      isLoading: true,
+      isLoading: false,
     );
     messages.add(userLine);
     loading = true;
     pulse();
-    userLine = await _saveMessage(userLine);
-    messages[messages.length - 1] = userLine;
     final result = await AgentChatV3Api.generateResponse(
       message: AgentChatV3Prompt.build(messages),
+      userMessage: text,
+      sessionId: chatV3.sessionId ?? '',
       imageData: imageData,
     );
     _resolveChatLoading();
     if (result['success'] == true) {
       chatV3.selectedImageData = null;
-      messages.add(await _saveMessage(
-        AgentChatLine(result['response'] ?? '', false),
-      ));
+      messages.add(AgentChatLine(result['response'] ?? '', false));
+      await _reloadPersistedChatMessages();
     } else {
       chatV3.selectedImageData = imageData;
-      messages.add(await _saveMessage(
-        AgentChatLine('Error: ${result['error']}', false),
-      ));
+      messages.add(AgentChatLine('Error: ${result['error']}', false));
     }
     loading = false;
     await refreshChatSessions();
@@ -64,14 +61,14 @@ extension AiAgentChatLogic on AiAgentMainlogic {
     messages.add(last.copyWith(isLoading: false));
   }
 
-  Future<AgentChatLine> _saveMessage(AgentChatLine line) async {
+  Future<void> _reloadPersistedChatMessages() async {
     final sessionId = chatV3.sessionId;
-    if (sessionId == null) return line;
+    if (sessionId == null) return;
     try {
-      return await historyApi.addMessage(
-          sessionId, line.copyWith(isLoading: false));
-    } catch (_) {
-      return line.copyWith(isLoading: false);
-    }
+      final saved = await historyApi.messages(sessionId);
+      messages
+        ..clear()
+        ..addAll(saved);
+    } catch (_) {}
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aone_ui/core/config/app_config.dart';
 import '../mainlogic/ai_agent_mainlogic.dart';
 import '../slavelogic/agent_models.dart';
 import 'task_age_row.dart';
@@ -80,44 +81,52 @@ class _TaskSheet extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                ListTile(
-                  leading: const Icon(Icons.person_add_alt_1_outlined),
-                  title:
-                      Text(liveTask.agentModelInstance ?? 'Assign model agent'),
-                  subtitle: liveTask.agentModelName == null
-                      ? null
-                      : Text(liveTask.agentModelName!),
-                  onTap: () {
-                    Navigator.pop(context);
-                    logic.assignAgent(liveTask);
-                  },
-                ),
-                if (liveTask.hasAgent)
+                if (AppConfig.showSubAgentUi) ...[
                   ListTile(
-                    leading: const Icon(Icons.person_remove_outlined),
-                    title: const Text('Cancel active agent'),
-                    onTap: () async {
-                      final ok = await confirmAction(
-                        context,
-                        title: 'Cancel active agent?',
-                        message:
-                            'This clears the model assignment from this task.',
-                        actionLabel: 'Cancel agent',
-                      );
-                      if (!ok || !context.mounted) return;
+                    leading: const Icon(Icons.person_add_alt_1_outlined),
+                    title: Text(
+                        liveTask.agentModelInstance ?? 'Assign model agent'),
+                    subtitle: liveTask.agentModelName == null
+                        ? null
+                        : Text(liveTask.agentModelName!),
+                    onTap: () {
                       Navigator.pop(context);
-                      logic.cancelAgent(liveTask);
+                      logic.assignAgent(liveTask);
                     },
                   ),
-                ListTile(
-                  leading: const Icon(Icons.chat_outlined),
-                  title: const Text('Chat with task agent'),
-                  enabled: liveTask.agent != null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    logic.chatWithTask(liveTask);
-                  },
-                ),
+                  if (liveTask.hasAgent)
+                    ListTile(
+                      leading: const Icon(Icons.person_remove_outlined),
+                      title: const Text('Cancel active agent'),
+                      onTap: () async {
+                        final ok = await confirmAction(
+                          context,
+                          title: 'Cancel active agent?',
+                          message:
+                              'This clears the model assignment from this task.',
+                          actionLabel: 'Cancel agent',
+                        );
+                        if (!ok || !context.mounted) return;
+                        Navigator.pop(context);
+                        logic.cancelAgent(liveTask);
+                      },
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.chat_outlined),
+                    title: const Text('Chat with task agent'),
+                    enabled: liveTask.agent != null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      logic.chatWithTask(liveTask);
+                    },
+                  ),
+                ] else
+                  ListTile(
+                    leading: const Icon(Icons.person_add_alt_1_outlined),
+                    title: const Text('Assign model agent'),
+                    subtitle: const Text('Coming soon'),
+                    onTap: () => _showSubAgentComingSoon(context),
+                  ),
                 const Divider(height: 24),
                 Text('Todos', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
@@ -159,6 +168,14 @@ class _TaskSheet extends StatelessWidget {
           );
         },
       );
+}
+
+void _showSubAgentComingSoon(BuildContext context) {
+  final messenger = ScaffoldMessenger.of(context);
+  Navigator.pop(context);
+  messenger.showSnackBar(
+    const SnackBar(content: Text('Model agents are coming soon.')),
+  );
 }
 
 Future<void> _deleteTodo(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:aone_ui/core/config/app_config.dart';
 import '../mainlogic/ai_agent_mainlogic.dart';
 import '../slavelogic/agent_models.dart';
 import 'active_agents_view.dart';
@@ -54,16 +56,20 @@ class _AiAgentScreenState extends State<AiAgentScreen> {
   String get _title => switch (logic.view) {
         AgentView.master => 'Chat v3',
         AgentView.projects => 'Projects',
-        AgentView.agents => 'Active Agents',
-        AgentView.history => logic.chatV3.showingSubAgentHistory
-            ? 'Sub Agent History'
-            : 'Chat History',
+        AgentView.agents =>
+          AppConfig.showSubAgentUi ? 'Active Agents' : 'Chat v3',
+        AgentView.history =>
+          logic.chatV3.showingSubAgentHistory && AppConfig.showSubAgentUi
+              ? 'Sub Agent History'
+              : 'Chat History',
       };
 
   Widget get _body => switch (logic.view) {
         AgentView.master => AgentChatV3Panel(logic: logic),
         AgentView.projects => ProjectsView(logic: logic),
-        AgentView.agents => ActiveAgentsView(logic: logic),
+        AgentView.agents => AppConfig.showSubAgentUi
+            ? ActiveAgentsView(logic: logic)
+            : AgentChatV3Panel(logic: logic),
         AgentView.history => HistoryView(logic: logic),
       };
 }
@@ -76,8 +82,17 @@ class _ErrorBanner extends StatelessWidget {
   Widget build(BuildContext context) => Align(
         alignment: Alignment.topCenter,
         child: MaterialBanner(
-          content: Text(logic.error!),
+          content: SelectableText(logic.error!),
           actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: logic.error!));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Error copied')),
+                );
+              },
+              child: const Text('Copy'),
+            ),
             TextButton(onPressed: logic.load, child: const Text('Retry')),
           ],
         ),
