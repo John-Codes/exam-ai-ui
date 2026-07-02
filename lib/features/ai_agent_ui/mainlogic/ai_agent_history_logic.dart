@@ -10,7 +10,7 @@ extension AiAgentHistoryLogic on AiAgentMainlogic {
       chatV3.masterSessions
         ..clear()
         ..addAll(await _listMasterSessions());
-      await loadAllSubAgentHistory();
+      if (AppConfig.showSubAgentUi) await loadAllSubAgentHistory();
       if (chatV3.masterSessions.isEmpty) await newMasterChatSession();
       if (chatV3.masterSessions.isNotEmpty) {
         await openMasterChatSession(chatV3.masterSessions.first);
@@ -23,7 +23,9 @@ extension AiAgentHistoryLogic on AiAgentMainlogic {
   }
 
   Future<void> newChatSession() async {
-    if (chatV3.activeChatIsSub && chatV3.activeSubAgent != null) {
+    if (AppConfig.showSubAgentUi &&
+        chatV3.activeChatIsSub &&
+        chatV3.activeSubAgent != null) {
       await openSubAgentTask(chatV3.activeSubAgent!);
       return;
     }
@@ -50,13 +52,13 @@ extension AiAgentHistoryLogic on AiAgentMainlogic {
 
   Future<void> refreshChatSessions() async {
     try {
-      if (chatV3.showingSubAgentHistory) {
+      if (AppConfig.showSubAgentUi && chatV3.showingSubAgentHistory) {
         await loadAllSubAgentHistory();
       } else if (!chatV3.activeChatIsSub) {
         chatV3.masterSessions
           ..clear()
           ..addAll(await _listMasterSessions());
-      } else if (chatV3.activeSubAgent != null) {
+      } else if (AppConfig.showSubAgentUi && chatV3.activeSubAgent != null) {
         await loadSubAgentSessions(chatV3.activeSubAgent!);
         await loadAllSubAgentHistory();
       }
@@ -65,6 +67,7 @@ extension AiAgentHistoryLogic on AiAgentMainlogic {
 
   Future<void> openChatSession(AgentChatSession session) async {
     if (session.agentType == 'sub') {
+      if (!AppConfig.showSubAgentUi) return;
       final task = _taskForSession(session);
       if (task != null) {
         await openSubAgentChatSession(task, session);
@@ -113,6 +116,7 @@ extension AiAgentHistoryLogic on AiAgentMainlogic {
   }
 
   Future<void> openSubAgentTask(AgentTask task) async {
+    if (!AppConfig.showSubAgentUi) return;
     chatV3.activeSubAgent = task;
     chatV3.activeChatIsSub = true;
     chatV3.showingSubAgentHistory = false;
@@ -177,15 +181,19 @@ extension AiAgentHistoryLogic on AiAgentMainlogic {
   }
 
   Future<void> loadSubAgentSessions(AgentTask task) async {
+    if (!AppConfig.showSubAgentUi) return;
+    /*
     chatV3.subSessions[task.id] = await historyApi.listSessions(
       userId: localUserId,
       clientId: localClientId,
       agentType: 'sub',
       agentId: task.id,
     );
+    */
   }
 
   Future<void> loadActiveAgentHistories() async {
+    if (!AppConfig.showSubAgentUi) return;
     for (final task in tasks.where((t) => t.hasAgent)) {
       await loadSubAgentSessions(task);
     }
@@ -193,6 +201,8 @@ extension AiAgentHistoryLogic on AiAgentMainlogic {
   }
 
   Future<void> loadAllSubAgentHistory() async {
+    if (!AppConfig.showSubAgentUi) return;
+    /*
     final items = await historyApi.listSessions(
       userId: localUserId,
       clientId: localClientId,
@@ -205,9 +215,11 @@ extension AiAgentHistoryLogic on AiAgentMainlogic {
         final key = session.agentId ?? session.id;
         return seen.add(key);
       }));
+    */
   }
 
   Future<void> openAllSubAgentHistory() async {
+    if (!AppConfig.showSubAgentUi) return;
     chatV3.showingSubAgentHistory = true;
     chatV3.activeChatIsSub = true;
     chatV3.activeSubAgent = null;
