@@ -1,5 +1,5 @@
 [build]
-  command = "flutter build web --web-renderer html --release"
+  command = "flutter build web --release --dart-define=AI_CHAT_BASE_URL=https://a1-agent-docker.onrender.com --dart-define=TRELLO_CLONE_BASE_URL=https://trello-clone-api-latest.onrender.com --dart-define=AGENT_CHAT_HISTORY_BASE_URL=https://a1-agent-docker.onrender.com"
   publish = "build/web"
 
 [[redirects]]
