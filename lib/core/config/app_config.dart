@@ -21,6 +21,16 @@ class AppConfig {
 
   static const String aiChatBaseUrl = 'http://100.91.34.26:8001';
 
+  /// TestReady CDL exam API base used by the AI quiz mode.
+  /// Override with --dart-define=EXAM_API_URL=https://...
+  static const String examApiBase = String.fromEnvironment(
+    'EXAM_API_URL',
+    defaultValue: 'https://exam-api-acfz.onrender.com',
+  );
+
+  static const String examWorkspace =
+      String.fromEnvironment('EXAM_WORKSPACE', defaultValue: 'ws_1');
+
   static const String thorVoiceBaseUrl = 'http://100.91.34.26:8020';
 
   static const String thorVoiceWebSocketUrl =

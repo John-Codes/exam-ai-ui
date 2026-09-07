@@ -4,7 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'features/ai_agent_ui/ui/ai_agent_screen.dart';
+import 'features/ai_quiz/ui/ai_quiz_screen.dart';
 
 Future<void> main() async {
   runZonedGuarded(() async {
@@ -57,11 +57,11 @@ class AOneUiApp extends StatelessWidget {
     );
 
     return MaterialApp(
-      title: 'AOne UI',
+      title: 'AI Quiz · TestReady CDL',
       theme: theme,
       darkTheme: theme,
       themeMode: ThemeMode.dark,
-      home: const AiAgentScreen(),
+      home: const AiQuizScreen(),
     );
   }
 }
