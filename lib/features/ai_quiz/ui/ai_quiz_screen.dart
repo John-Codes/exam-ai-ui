@@ -6,9 +6,10 @@ import '../../ai_chat_v2/voice/ui/voice_mode_button.dart';
 import '../quiz/quiz_controller.dart';
 import '../quiz/quiz_models.dart';
 
-/// AI quiz mode. Boots straight into a chat with a "letter-answer or ask"
-/// loop over the published CDL question bank, with voice TTS/STT and the
-/// exam-api LLM proxy for free-text follow-ups.
+/// AI quiz mode. Boots straight into a conversational "which test?" phase —
+/// the AI tutor asks what to take and understands any language — then runs the
+/// letter-answer / free-text loop over the published CDL question bank, with
+/// voice TTS/STT and the exam-api LLM proxy for follow-ups.
 class AiQuizScreen extends StatefulWidget {
   const AiQuizScreen({super.key});
 
@@ -32,6 +33,8 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
     if (preselect != null) {
       _picked = preselect;
       WidgetsBinding.instance.addPostFrameCallback((_) => _session.start(preselect));
+    } else {
+      _session.beginSubjectSelection();
     }
   }
 
@@ -62,24 +65,29 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
     if (_session.aiBusy || _session.starting) return;
     final text = _input.text.trim();
     if (text.isEmpty) return;
-    _session.send(text);
+    if (_picked == null) {
+      _session.chooseSubject(text);
+    } else {
+      _session.send(text);
+    }
     _input.clear();
     _focus.requestFocus();
   }
 
+  void _pick(QuizSubject subject) {
+    setState(() => _picked = subject);
+    _session.start(subject);
+  }
+
   void _goHome() {
     setState(() => _picked = null);
+    _session.beginSubjectSelection();
   }
 
   @override
   Widget build(BuildContext context) {
     final subject = _picked;
-    if (subject == null) {
-      return _SubjectPicker(onPick: (s) {
-        setState(() => _picked = s);
-        _session.start(s);
-      });
-    }
+    final choosing = subject == null;
 
     return Scaffold(
       body: SafeArea(
@@ -95,14 +103,18 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
                   onRestart: () => _session.restart(),
                   onHome: _goHome,
                 ),
+                if (choosing) _SubjectChips(onPick: _pick),
                 Expanded(child: _buildBody()),
                 if (_session.aiBusy) const LinearProgressIndicator(minHeight: 2),
                 _InputBar(
                   controller: _input,
                   focusNode: _focus,
-                  enabled: _session.inProgress,
+                  enabled: _session.canInteract,
                   busy: _session.aiBusy || _session.starting,
                   messages: _voiceMessages,
+                  hintText: choosing
+                      ? 'Which test would you like to take?'
+                      : 'Your answer (A, B, C, D) or a question…',
                   onSend: _send,
                 ),
               ],
@@ -163,7 +175,7 @@ class _QuizHeader extends StatelessWidget {
   });
 
   final QuizSession session;
-  final QuizSubject subject;
+  final QuizSubject? subject;
   final VoidCallback onRestart;
   final VoidCallback onHome;
 
@@ -174,6 +186,9 @@ class _QuizHeader extends StatelessWidget {
     final livePct = session.answered > 0
         ? (session.correctCount * 100 / session.answered).round()
         : null;
+    final title = subject == null
+        ? 'AI Quiz · Pick a subject'
+        : (session.done ? 'Results · ${subject!.title}' : 'AI Quiz · ${subject!.title}');
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
@@ -182,7 +197,7 @@ class _QuizHeader extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                tooltip: 'Change subject',
+                tooltip: 'Start over (pick a subject)',
                 icon: const Icon(Icons.home_outlined),
                 onPressed: onHome,
               ),
@@ -208,14 +223,22 @@ class _QuizHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      session.done ? 'Results · ${subject.title}' : 'AI Quiz · ${subject.title}',
+                      title,
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (total > 0)
+                    if (total > 0 && subject != null)
                       Text(
                         '${session.done ? total : session.index + 1} of $total questions · pass = 80%',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      )
+                    else
+                      Text(
+                        'Works in any language',
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
@@ -224,11 +247,12 @@ class _QuizHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'New quiz',
-                icon: const Icon(Icons.refresh),
-                onPressed: onRestart,
-              ),
+              if (subject != null)
+                IconButton(
+                  tooltip: 'New quiz',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: onRestart,
+                ),
             ],
           ),
           if (total > 0) ...[
@@ -263,6 +287,36 @@ class _QuizHeader extends StatelessWidget {
   }
 }
 
+/// Quick-pick chips shown during the "which test?" phase.
+class _SubjectChips extends StatelessWidget {
+  const _SubjectChips({required this.onPick});
+
+  final ValueChanged<QuizSubject> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final s in kQuizSubjects)
+            ActionChip(
+              avatar: Icon(Icons.auto_awesome,
+                  size: 15, color: scheme.secondary),
+              label: Text(s.title),
+              visualDensity: VisualDensity.compact,
+              onPressed: () => onPick(s),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _InputBar extends StatelessWidget {
   const _InputBar({
     required this.controller,
@@ -270,6 +324,7 @@ class _InputBar extends StatelessWidget {
     required this.enabled,
     required this.busy,
     required this.messages,
+    required this.hintText,
     required this.onSend,
   });
 
@@ -278,6 +333,7 @@ class _InputBar extends StatelessWidget {
   final bool enabled;
   final bool busy;
   final List<ChatMessageV2> messages;
+  final String hintText;
   final VoidCallback onSend;
 
   @override
@@ -309,7 +365,7 @@ class _InputBar extends StatelessWidget {
                 enabled: enabled,
                 decoration: InputDecoration(
                   hintText: enabled
-                      ? 'Your answer (A, B, C, D) or a question…'
+                      ? hintText
                       : 'Session finished — start a new quiz',
                   filled: true,
                   border: OutlineInputBorder(
@@ -381,132 +437,6 @@ class _ErrorView extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SubjectPicker extends StatelessWidget {
-  const _SubjectPicker({required this.onPick});
-
-  final ValueChanged<QuizSubject> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF7B3CFF), Color(0xFF4F8CFF)],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text('AI Quiz Mode',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text('Pick a subject',
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 4),
-                Text(
-                  'Same official question bank, but you chat with an AI tutor. '
-                  'Reply with the letter A–D, ask questions anytime, and use '
-                  'voice mode to talk it through.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 12),
-                for (final s in kQuizSubjects) ...[
-                  _SubjectCard(subject: s, onTap: () => onPick(s)),
-                  const SizedBox(height: 8),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SubjectCard extends StatelessWidget {
-  const _SubjectCard({required this.subject, required this.onTap});
-
-  final QuizSubject subject;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF7B3CFF), Color(0xFF4F8CFF)],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(subject.abbr,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white)),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(subject.title,
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(subject.description,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.auto_awesome,
-                  size: 18, color: Color(0xFF7B3CFF)),
-            ],
           ),
         ),
       ),

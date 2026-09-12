@@ -8,6 +8,10 @@ class FakeApi extends AiQuizApi {
 
   int aiCalls = 0;
   int attemptCalls = 0;
+  int resolveCalls = 0;
+  String? resolveResult = 'air-brakes';
+
+  bool get resolvedWithoutLlm => resolveCalls == 0;
 
   @override
   Future<List<QuizQuestion>> fetchQuestions({
@@ -62,7 +66,18 @@ class FakeApi extends AiQuizApi {
   }) async {
     attemptCalls++;
   }
+
+  @override
+  Future<String?> resolveSubject(String text) async {
+    resolveCalls++;
+    return resolveResult;
+  }
 }
+
+const _letterSpell = <String, String>{'A': 'ay', 'B': 'bee', 'C': 'see', 'D': 'dee'};
+
+String quiz_models_spell(String letter) =>
+    _letterSpell[letter.toUpperCase()] ?? letter.toLowerCase();
 
 void main() {
   test('letter answers are scored deterministically and free text hits LLM',
@@ -74,14 +89,18 @@ void main() {
     expect(session.total, 2);
     expect(session.done, false);
 
-    // Wrong letter (A) → D is correct? no, correct is B → wrong.
-    await session.send('A');
+    // Send a wrong letter for whichever question is first (order-agnostic).
+    final first = session.pool.first;
+    final wrongLetter = ['A', 'B', 'C', 'D']
+        .firstWhere((l) => !first.answerKey.contains(l));
+    await session.send(wrongLetter);
     expect(session.wrongCount, 1);
     expect(session.correctCount, 0);
     expect(session.done, false);
 
-    // Voice-style answer "dee" → correct for q2 (D).
-    await session.send('dee');
+    // Voice-style answer for the remaining question's correct letter.
+    final remaining = session.pool.last;
+    await session.send(quiz_models_spell(remaining.answerKey.first));
     expect(session.correctCount, 1);
     expect(session.done, true);
     expect(session.scorePercent, 50);
@@ -112,8 +131,77 @@ void main() {
     final api = FakeApi();
     final session = QuizSession(api: api);
     await session.start(kQuizSubjects.first);
-    await session.send('the answer is B');
+    final correct = session.pool.first.answerKey.first.toLowerCase();
+    await session.send('the answer is $correct');
     expect(session.correctCount, 1);
     expect(session.answered, 1);
+  });
+
+  test('free text resolves a subject locally without the LLM', () async {
+    final api = FakeApi();
+    final session = QuizSession(api: api);
+    session.beginSubjectSelection();
+
+    expect(session.choosingSubject, true);
+    expect(session.messages, isNotEmpty);
+    expect(session.messages.first.text, contains('Which test'));
+
+    await session.chooseSubject('air brakes');
+    expect(api.resolvedWithoutLlm, true);
+    expect(session.choosingSubject, false);
+    expect(session.subject?.slug, 'air-brakes');
+    expect(session.total, 2);
+    expect(session.messages.last.mine, false);
+  });
+
+  test('non-English free text resolves locally', () async {
+    final api = FakeApi();
+    final session = QuizSession(api: api);
+    session.beginSubjectSelection();
+
+    await session.chooseSubject('quiero la prueba de frenos de aire');
+    expect(api.resolvedWithoutLlm, true);
+    expect(session.subject?.slug, 'air-brakes');
+
+    final session2 = QuizSession(api: api);
+    session2.beginSubjectSelection();
+    await session2.chooseSubject('examen de conocimientos generales');
+    expect(session2.subject?.slug, 'general-knowledge');
+  });
+
+  test('ambiguous free text falls back to the LLM resolver', () async {
+    final api = FakeApi();
+    api.resolveResult = 'tanker';
+    final session = QuizSession(api: api);
+    session.beginSubjectSelection();
+
+    await session.chooseSubject('the one with the big cylinder truck');
+    expect(api.resolveCalls, 1);
+    expect(session.choosingSubject, false);
+    expect(session.subject?.slug, 'tanker');
+  });
+
+  test('unknown text keeps the selection phase open with a retry hint', () async {
+    final api = FakeApi();
+    api.resolveResult = null;
+    final session = QuizSession(api: api);
+    session.beginSubjectSelection();
+
+    await session.chooseSubject('queria algo distinto');
+    expect(api.resolveCalls, 1);
+    expect(session.choosingSubject, true);
+    expect(session.subject, isNull);
+    expect(session.messages.last.text, contains('tap a subject below'));
+  });
+
+  test('quizSubjectForText covers slugs, english titles and translations', () {
+    expect(quizSubjectForText('air-brakes')?.slug, 'air-brakes');
+    expect(quizSubjectForText('air brakes')?.slug, 'air-brakes');
+    expect(quizSubjectForText('combination vehicles')?.slug, 'combination-vehicles');
+    expect(quizSubjectForText('hazmat')?.slug, 'hazmat');
+    expect(quizSubjectForText('school bus')?.slug, 'school-bus');
+    expect(quizSubjectForText('pasajeros')?.slug, 'passenger-bus');
+    expect(quizSubjectForText('mercancías peligrosas')?.slug, 'hazmat');
+    expect(quizSubjectForText('unknown thing'), isNull);
   });
 }

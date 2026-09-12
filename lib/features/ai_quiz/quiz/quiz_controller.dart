@@ -29,6 +29,7 @@ class QuizSession extends ChangeNotifier {
 
   bool starting = false;
   bool aiBusy = false;
+  bool choosingSubject = false;
   String? error;
   DateTime? startedAt;
 
@@ -36,6 +37,7 @@ class QuizSession extends ChangeNotifier {
   int get answered => correctCount + wrongCount;
   bool get done => total > 0 && index >= total;
   bool get inProgress => total > 0 && !done && error == null;
+  bool get canInteract => choosingSubject || inProgress;
 
   int? get scorePercent {
     if (total == 0) return null;
@@ -48,8 +50,60 @@ class QuizSession extends ChangeNotifier {
     return pct >= 80;
   }
 
+  /// Opens the conversational "which test?" phase: a greeting from the AI
+  /// tutor, answering in any language. Tap a chip or type/say a subject.
+  void beginSubjectSelection() {
+    choosingSubject = true;
+    subject = null;
+    pool = [];
+    index = 0;
+    correctCount = 0;
+    wrongCount = 0;
+    startedAt = null;
+    error = null;
+    aiBusy = false;
+    starting = false;
+    messages.clear();
+    _push(AgentChatLine(_subjectPromptMarkdown(), false));
+    notifyListeners();
+  }
+
+  Future<void> chooseSubject(String raw) async {
+    if (!choosingSubject || raw.trim().isEmpty) return;
+    final text = raw.trim();
+    _push(AgentChatLine(text, true));
+    notifyListeners();
+
+    final local = quizSubjectForText(text);
+    if (local != null) {
+      await start(local);
+      return;
+    }
+    aiBusy = true;
+    notifyListeners();
+    try {
+      final slug = await api.resolveSubject(text);
+      final subject = quizSubjectForSlug(slug);
+      if (subject != null) {
+        await start(subject);
+        return;
+      }
+      _push(AgentChatLine(_subjectRetryMarkdown(), false));
+    } catch (e) {
+      _push(AgentChatLine(
+        '⚠️ I had trouble reaching the AI tutor:\n\n`$e`\n\n'
+        'You can also tap a subject below.',
+        false,
+      ));
+    } finally {
+      aiBusy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> start(QuizSubject subject) async {
     this.subject = subject;
+    choosingSubject = false;
     starting = true;
     error = null;
     index = 0;
@@ -81,7 +135,7 @@ class QuizSession extends ChangeNotifier {
 
   Future<void> send(String raw) async {
     final text = raw.trim();
-    if (text.isEmpty || done) return;
+    if (text.isEmpty || done || subject == null) return;
     _push(AgentChatLine(text, true));
     notifyListeners();
 
@@ -153,6 +207,23 @@ class QuizSession extends ChangeNotifier {
   }
 
   // ── message builders ────────────────────────────────────────────────────
+
+  String _subjectPromptMarkdown() {
+    return 'Welcome! I\'m your CDL exam tutor. 🚚📚\n\n'
+        '**Which test would you like to take?**\n\n'
+        'You can tell me in your own language — for example:\n'
+        '- "air brakes"\n'
+        '- "prueba de frenos de aire"\n'
+        '- "hazmat"\n\n'
+        'Reply here, use the microphone 🎤, or tap a subject below.';
+  }
+
+  String _subjectRetryMarkdown() {
+    return 'Hmm, I didn\'t catch which test you meant. Try one of these, or tap a '
+        'subject below:\n\n'
+        '**General Knowledge** · **Air Brakes** · **Combination Vehicles** · '
+        '**Tanker** · **Hazmat** · **Passenger Bus** · **School Bus**';
+  }
 
   String _questionMarkdown(int i) {
     final q = pool[i];
