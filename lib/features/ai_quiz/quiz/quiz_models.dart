@@ -72,6 +72,50 @@ QuizSubject? quizSubjectForSlug(String? slug) {
   return null;
 }
 
+const _kSubjectKeywords = <String, List<String>>{
+  'general-knowledge': <String>['general', 'knowledge', 'gk', 'conocimient', 'general'],
+  'air-brakes': <String>['air', 'brake', 'freno', 'frenos', 'aire', 'ab'],
+  'combination-vehicles': <String>['combination', 'combinacion', 'tractor-trailer', 'trailer', 'cv'],
+  'tanker': <String>['tanker', 'tanque', 'cisterna', 'tk'],
+  'hazmat': <String>['hazmat', 'hazard', 'dangerous', 'peligros', 'materiales', 'mercanc', 'hz'],
+  'passenger-bus': <String>['passenger', 'pasajero', 'autobus', 'autobús', 'bus', 'pb'],
+  'school-bus': <String>['school', 'student', 'escolar', 'escuela', 'sb'],
+};
+
+/// Resolves free text (any language) to a subject. Best-effort keyword match;
+/// returns null when ambiguous or unknown so callers can fall back to the LLM.
+QuizSubject? quizSubjectForText(String text) {
+  final q = text.trim().toLowerCase();
+  if (q.isEmpty) return null;
+  final clean = q
+      .replaceAll(RegExp('[^a-z0-9 ]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  for (final s in kQuizSubjects) {
+    if (clean == s.slug || clean.contains(s.slug)) return s;
+    final title = s.title.toLowerCase();
+    if (clean.contains(title) || title.contains(clean)) return s;
+  }
+
+  String? best;
+  var bestScore = 0;
+  for (final s in kQuizSubjects) {
+    var score = 0;
+    for (final kw in _kSubjectKeywords[s.slug]!) {
+      if (clean.contains(kw)) score++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = s.slug;
+    } else if (score == bestScore && score > 0) {
+      best = null;
+    }
+  }
+  if (best != null && bestScore >= 1) return quizSubjectForSlug(best);
+  return null;
+}
+
 class QuizChoice {
   const QuizChoice({required this.key, required this.text, this.explanation});
 

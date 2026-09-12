@@ -81,6 +81,44 @@ class AiQuizApi {
     return (data['response'] as String?)?.trim() ?? '';
   }
 
+  /// Have the LLM map a free-text request (in any language) to a subject slug.
+  /// Returns null when the LLM cannot confidently match a subject.
+  Future<String?> resolveSubject(String text) async {
+    final choices = {
+      for (final s in kQuizSubjects) s.slug: s.title,
+    };
+    final body = {
+      'user_text': text,
+      'history': <Object>[],
+      'context': {
+        'subject': null,
+        'subject_label': null,
+        'stem': 'You are the test selector for a CDL practice quiz app. '
+            'Understand what the test-taker says in ANY language (English, '
+            'Spanish, French, etc.) and decide which single practice test they '
+            'want to take. Reply with ONLY the matching key from this list, or '
+            'exactly "none" if nothing matches or it is ambiguous. '
+            'Available keys: '
+            '${choices.entries.map((e) => '${e.key} = ${e.value}').join('; ')}.',
+        'choices': choices,
+      },
+    };
+    final res = await http
+        .post(
+          _uri('/ai/generate'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 120));
+    if (res.statusCode != 200) return null;
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final reply = ((data['response'] as String?) ?? '').trim().toLowerCase();
+    for (final slug in choices.keys) {
+      if (reply.contains(slug)) return slug;
+    }
+    return null;
+  }
+
   Future<void> recordAttempt({
     required String tag,
     required int total,
