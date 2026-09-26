@@ -26,9 +26,11 @@ class QuizSession extends ChangeNotifier {
   int index = 0;
   int correctCount = 0;
   int wrongCount = 0;
+  int skippedCount = 0;
 
   bool starting = false;
   bool aiBusy = false;
+  bool choosingSubject = false;
   String? error;
   DateTime? startedAt;
 
@@ -36,6 +38,7 @@ class QuizSession extends ChangeNotifier {
   int get answered => correctCount + wrongCount;
   bool get done => total > 0 && index >= total;
   bool get inProgress => total > 0 && !done && error == null;
+  bool get canInteract => choosingSubject || inProgress;
 
   int? get scorePercent {
     if (total == 0) return null;
@@ -48,13 +51,69 @@ class QuizSession extends ChangeNotifier {
     return pct >= 80;
   }
 
+  /// Opens the conversational "which test?" phase: a greeting from the AI
+  /// tutor, answering in any language. Tap a chip or type/say a subject.
+  void beginSubjectSelection() {
+    choosingSubject = true;
+    subject = null;
+    pool = [];
+    index = 0;
+    correctCount = 0;
+    wrongCount = 0;
+    skippedCount = 0;
+    startedAt = null;
+    error = null;
+    aiBusy = false;
+    starting = false;
+    messages.clear();
+    _push(AgentChatLine(_subjectPromptMarkdown(), false));
+    notifyListeners();
+  }
+
+  Future<void> chooseSubject(String raw) async {
+    if (!choosingSubject || raw.trim().isEmpty) return;
+    final text = raw.trim();
+    _push(AgentChatLine(text, true));
+    notifyListeners();
+
+    final local = quizSubjectForText(text);
+    if (local != null) {
+      await start(local);
+      return;
+    }
+    aiBusy = true;
+    notifyListeners();
+    try {
+      final slug = await api.resolveSubject(text);
+      final subject = quizSubjectForSlug(slug);
+      if (subject != null) {
+        await start(subject);
+        return;
+      }
+      _push(AgentChatLine(_subjectRetryMarkdown(), false));
+    } catch (e) {
+      _push(AgentChatLine(
+        _friendlyTutorError(e).replaceAll(
+          'Reply **A, B, C or D** to continue, or try your question again.',
+          'You can also just tap a subject below.',
+        ),
+        false,
+      ));
+    } finally {
+      aiBusy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> start(QuizSubject subject) async {
     this.subject = subject;
+    choosingSubject = false;
     starting = true;
     error = null;
     index = 0;
     correctCount = 0;
     wrongCount = 0;
+    skippedCount = 0;
     startedAt = DateTime.now();
     messages.clear();
     notifyListeners();
@@ -81,9 +140,14 @@ class QuizSession extends ChangeNotifier {
 
   Future<void> send(String raw) async {
     final text = raw.trim();
-    if (text.isEmpty || done) return;
+    if (text.isEmpty || done || subject == null) return;
     _push(AgentChatLine(text, true));
     notifyListeners();
+
+    if (_isSkipCommand(text)) {
+      _skip();
+      return;
+    }
 
     final q = pool[index];
     final letter = _parseAnswer(text);
@@ -93,6 +157,34 @@ class QuizSession extends ChangeNotifier {
       await _askAi(q, text);
     }
     notifyListeners();
+  }
+
+  /// Moves past the current question without scoring it. Skipped questions are
+  /// not counted against the score; the learner can keep their momentum instead
+  /// of getting trapped by question order.
+  void _skip() {
+    skippedCount++;
+    _push(AgentChatLine(
+      '⏭️ Question ${index + 1} skipped (${skippedCount} so far) — no points counted.\n\n'
+      '_Don\'t let question order trap you. Type **skip** again to move on, or reply with a letter._',
+      false,
+    ));
+    index++;
+    if (done) {
+      _push(AgentChatLine(_resultsMarkdown(), false));
+      notifyListeners();
+    } else {
+      _push(AgentChatLine(_questionMarkdown(index), false));
+    }
+  }
+
+  bool _isSkipCommand(String text) {
+    final t = text.toLowerCase().trim();
+    if (t.isEmpty) return false;
+    const exact = {'skip', 'skip it', 'skip this', 'skip this question',
+      'next', 'next question', 'pass', "don't know", 'i dont know', 'i don\'t know'};
+    if (exact.contains(t)) return true;
+    return t.startsWith('skip ') || t.startsWith('next ');
   }
 
   Future<void> _grade(QuizQuestion q, String letter) async {
@@ -130,14 +222,35 @@ class QuizSession extends ChangeNotifier {
       );
       _push(AgentChatLine(reply.isEmpty ? '(no reply)' : reply, false));
     } catch (e) {
-      _push(AgentChatLine(
-        '⚠️ I had trouble reaching the AI tutor:\n\n`$e`\n\n'
-        'Reply **A, B, C or D** to continue, or try your question again.',
-        false,
-      ));
+      _push(AgentChatLine(_friendlyTutorError(e), false));
     } finally {
       aiBusy = false;
     }
+  }
+
+  /// Renders a non-technical message for tutor failures. Quota and
+  /// unconfigured states get gentle suggestions rather than raw error text.
+  String _friendlyTutorError(Object e) {
+    String? code;
+    String? message;
+    if (e is AiTutorException) {
+      code = e.code;
+      message = e.message;
+    }
+    if (code == 'no_provider_configured') {
+      return '⚠️ The AI tutor is a bit overloaded right now.\n\n'
+          'Try again in a minute — or reply with **A, B, C or D** to keep practicing.';
+    }
+    if (code == 'provider_quota_exhausted') {
+      return '⚠️ The free AI tutor has reached its usage limit for now.\n\n'
+          'You can keep practicing with **A, B, C or D**, or tap **⚙ Settings** '
+          'to connect your own (free) AI access.';
+    }
+    final detail = (message == null || message.isEmpty)
+        ? ''
+        : '\n\n`$message`';
+    return '⚠️ I had trouble reaching the AI tutor:$detail\n\n'
+        'Reply **A, B, C or D** to continue, or try your question again.';
   }
 
   Future<void> _recordAttempt() async {
@@ -154,6 +267,23 @@ class QuizSession extends ChangeNotifier {
 
   // ── message builders ────────────────────────────────────────────────────
 
+  String _subjectPromptMarkdown() {
+    return 'Welcome! I\'m your CDL exam tutor. 🚚📚\n\n'
+        '**Which test would you like to take?**\n\n'
+        'You can tell me in your own language — for example:\n'
+        '- "air brakes"\n'
+        '- "prueba de frenos de aire"\n'
+        '- "hazmat"\n\n'
+        'Reply here, use the microphone 🎤, or tap a subject below.';
+  }
+
+  String _subjectRetryMarkdown() {
+    return 'Hmm, I didn\'t catch which test you meant. Try one of these, or tap a '
+        'subject below:\n\n'
+        '**General Knowledge** · **Air Brakes** · **Combination Vehicles** · '
+        '**Tanker** · **Hazmat** · **Passenger Bus** · **School Bus**';
+  }
+
   String _questionMarkdown(int i) {
     final q = pool[i];
     final buf = StringBuffer()
@@ -166,7 +296,9 @@ class QuizSession extends ChangeNotifier {
     }
     buf
       ..writeln()
-      ..writeln('Reply with the **letter** (A, B, C or D) — or ask me to explain it.');
+      ..writeln('Reply with the **letter** (A, B, C or D) — or ask me to explain it.')
+      ..writeln()
+      ..writeln('_Stuck? Type **skip** — question order isn\'t the point._');
     return buf.toString();
   }
 
@@ -197,6 +329,7 @@ class QuizSession extends ChangeNotifier {
         '$headline\n\n'
         '✅ Correct: $correctCount\n'
         '❌ Wrong: $wrongCount\n'
+        '⏭️ Skipped: $skippedCount\n'
         '📝 Answered: $answered/$total\n\n'
         'The passing score is **80%**. Tap **New quiz** to try again, '
         'or pick another subject.';
