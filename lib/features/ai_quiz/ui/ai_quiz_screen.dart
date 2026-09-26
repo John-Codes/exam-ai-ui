@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../ai_agent_ui/ui/chat_v3/agent_chat_v3_list.dart';
 import '../../ai_chat_v2/mainlogic/ai_chat_v2_mainlogic.dart';
 import '../../ai_chat_v2/voice/ui/voice_mode_button.dart';
+import '../quiz/openrouter_key_store.dart';
+import '../quiz/quiz_api.dart';
 import '../quiz/quiz_controller.dart';
 import '../quiz/quiz_models.dart';
 
@@ -84,6 +86,40 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
     _session.beginSubjectSelection();
   }
 
+  /// Collapsible "how to use AI mode" panel.
+  void _showHelp() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => const _AiHelpPanel(),
+    );
+  }
+
+  /// Settings dialog: connect the user's own (optional, free) OpenRouter key.
+  Future<void> _showSettings() async {
+    final initial = await OpenRouterKeyStore.has();
+    if (!mounted) return;
+    final controller = TextEditingController();
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _ByokDialog(
+        controller: controller,
+        hasKey: initial,
+        api: _session.api,
+      ),
+    );
+    controller.dispose();
+    if (changed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your AI settings were saved.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final subject = _picked;
@@ -102,6 +138,8 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
                   subject: subject,
                   onRestart: () => _session.restart(),
                   onHome: _goHome,
+                  onHelp: _showHelp,
+                  onSettings: _showSettings,
                 ),
                 if (choosing) _SubjectChips(onPick: _pick),
                 Expanded(child: _buildBody()),
@@ -115,6 +153,9 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
                   hintText: choosing
                       ? 'Which test would you like to take?'
                       : 'Your answer (A, B, C, D) or a question…',
+                  quietHint: choosing
+                      ? 'Conversation mode works in any language — no need to write full sentences.'
+                      : 'Tip: voice & conversation mode work best in a quiet spot.',
                   onSend: _send,
                 ),
               ],
@@ -172,12 +213,16 @@ class _QuizHeader extends StatelessWidget {
     required this.subject,
     required this.onRestart,
     required this.onHome,
+    required this.onHelp,
+    required this.onSettings,
   });
 
   final QuizSession session;
   final QuizSubject? subject;
   final VoidCallback onRestart;
   final VoidCallback onHome;
+  final VoidCallback onHelp;
+  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -253,6 +298,16 @@ class _QuizHeader extends StatelessWidget {
                   icon: const Icon(Icons.refresh),
                   onPressed: onRestart,
                 ),
+              IconButton(
+                tooltip: 'How to use AI mode',
+                icon: const Icon(Icons.help_outline),
+                onPressed: onHelp,
+              ),
+              IconButton(
+                tooltip: 'Settings',
+                icon: const Icon(Icons.settings_outlined),
+                onPressed: onSettings,
+              ),
             ],
           ),
           if (total > 0) ...[
@@ -325,6 +380,7 @@ class _InputBar extends StatelessWidget {
     required this.busy,
     required this.messages,
     required this.hintText,
+    required this.quietHint,
     required this.onSend,
   });
 
@@ -334,6 +390,7 @@ class _InputBar extends StatelessWidget {
   final bool busy;
   final List<ChatMessageV2> messages;
   final String hintText;
+  final String quietHint;
   final VoidCallback onSend;
 
   @override
@@ -343,7 +400,7 @@ class _InputBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: EdgeInsets.fromLTRB(pad, 10, pad, 12),
+        padding: EdgeInsets.fromLTRB(pad, 8, pad, 12),
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
           border: Border(
@@ -351,51 +408,244 @@ class _InputBar extends StatelessWidget {
                 color: scheme.outlineVariant.withValues(alpha: 0.35)),
           ),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                minLines: 1,
-                maxLines: 4,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                enabled: enabled,
-                decoration: InputDecoration(
-                  hintText: enabled
-                      ? hintText
-                      : 'Session finished — start a new quiz',
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
+            Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.tips_and_updates_outlined,
+                      size: 13, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      quietHint,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant, fontSize: 12),
+                    ),
                   ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                ],
+              ),
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => onSend(),
+                    enabled: enabled,
+                    decoration: InputDecoration(
+                      hintText: enabled
+                          ? hintText
+                          : 'Session finished — start a new quiz',
+                      filled: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 10, bottom: 2),
-              child: VoiceModeButtonV2(
-                textController: controller,
-                onSend: onSend,
-                messages: messages,
-                isLoading: busy,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 10, bottom: 2),
-              child: IconButton.filled(
-                tooltip: 'Send',
-                onPressed: enabled ? onSend : null,
-                icon: const Icon(Icons.arrow_upward),
-              ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 10, bottom: 2),
+                  child: VoiceModeButtonV2(
+                    textController: controller,
+                    onSend: onSend,
+                    messages: messages,
+                    isLoading: busy,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 10, bottom: 2),
+                  child: IconButton.filled(
+                    tooltip: 'Send',
+                    onPressed: enabled ? onSend : null,
+                    icon: const Icon(Icons.arrow_upward),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Bottom-sheet "how to use AI mode" guidance shown from the header help icon.
+class _AiHelpPanel extends StatelessWidget {
+  const _AiHelpPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme.bodyMedium;
+    final style = TextStyle(color: scheme.onSurfaceVariant, height: 1.45);
+    Widget bullet(IconData icon, String title, String body) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 20, color: scheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: text?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(body, style: style),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                'How to use AI mode',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            bullet(Icons.record_voice_over_outlined, 'Chat in your own words',
+                'Type or talk in any language. Build confidence by summarizing '
+                    'what you know — you don\'t need full sentences.'),
+            bullet(Icons.volume_off_outlined, 'Use it in a quiet spot',
+                'Voice and conversation mode work best somewhere quiet — '
+                    'background noise confuses speech recognition.'),
+            bullet(Icons.swap_horiz_outlined, 'Answers & skipping',
+                'Reply with the letter (A, B, C or D) to answer. Stuck on a '
+                    'question? Type **skip** to move past it — question order '
+                    'isn\'t the point.'),
+            bullet(Icons.settings_outlined, 'Your own AI key (optional)',
+                'If the free tutor is busy, tap ⚙ Settings to connect your own '
+                    'free OpenRouter key. It stays only in this browser.'),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Dialog for connecting (or removing) the user's own OpenRouter key.
+class _ByokDialog extends StatefulWidget {
+  const _ByokDialog({
+    required this.controller,
+    required this.hasKey,
+    required this.api,
+  });
+
+  final TextEditingController controller;
+  final bool hasKey;
+  final AiQuizApi api;
+
+  @override
+  State<_ByokDialog> createState() => _ByokDialogState();
+}
+
+class _ByokDialogState extends State<_ByokDialog> {
+  bool _busy = false;
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    await OpenRouterKeyStore.set(widget.controller.text);
+    await widget.api.refreshOpenRouterKey();
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  Future<void> _clear() async {
+    setState(() => _busy = true);
+    await OpenRouterKeyStore.clear();
+    await widget.api.refreshOpenRouterKey();
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: const Text('AI settings'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.hasKey
+                  ? 'Your own AI key is connected. Paste a new one to change it, '
+                      'or remove it below.'
+                  : 'Connect your own (free) OpenRouter AI key to unlock AI '
+                      'tutoring even when the built-in tutor is busy.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: widget.controller,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'OpenRouter API key (optional)',
+                hintText: 'sk-or-…',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Stored only in this browser and never shown in chat.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        if (widget.hasKey)
+          TextButton(
+            onPressed: _busy ? null : _clear,
+            child: const Text('Remove key'),
+          ),
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
