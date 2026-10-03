@@ -7,6 +7,7 @@ import '../quiz/openrouter_key_store.dart';
 import '../quiz/quiz_api.dart';
 import '../quiz/quiz_controller.dart';
 import '../quiz/quiz_models.dart';
+import 'fun_loading_view.dart';
 
 /// AI quiz mode. Boots straight into a conversational "which test?" phase —
 /// the AI tutor asks what to take and understands any language — then runs the
@@ -168,7 +169,11 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
 
   Widget _buildBody() {
     if (_session.starting) {
-      return const Center(child: CircularProgressIndicator());
+      return FunLoadingView(
+        hint: _picked != null
+            ? 'Loading ${_picked!.title} questions…'
+            : 'Loading your questions…',
+      );
     }
     if (_session.error != null && _session.messages.isEmpty) {
       return _ErrorView(
@@ -176,6 +181,10 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
         onRetry: _session.restart,
         onHome: _goHome,
       );
+    }
+    if (_session.messages.isEmpty) {
+      // Defensive: never render a totally blank canvas between states.
+      return const FunLoadingView();
     }
     return AgentChatV3List(
       messages: _session.messages,

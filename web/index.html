@@ -41,6 +41,37 @@
   -->
   <div id="ad-slot-top" style="display:none;" data-ad-slot="ai-exam-top"></div>
 
+  <!--
+    Loading-screen ad. While the quiz waits for the question API to cold-start
+    (the longest dwell on the whole app), the Dart loader unhides this overlay
+    via #loading-ad. To activate a real AdSense unit: create a Display ad unit
+    in the AdSense dashboard for publisher ca-pub-4751583089482999 and paste
+    its numeric ID into LOADING_AD_SLOT below. Leave it empty and nothing ships.
+  -->
+  <div id="loading-ad" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);width:320px;max-width:90vw;display:none;z-index:20;">
+    <ins class="adsbygoogle"
+         style="display:inline-block;width:320px;height:100px"
+         data-ad-client="ca-pub-4751583089482999"
+         data-ad-slot=""></ins>
+  </div>
+  <script>
+    window.LOADING_AD_SLOT = ''; // ← paste the AdSense ad unit ID to activate
+    if (window.LOADING_AD_SLOT) {
+      document.addEventListener('DOMContentLoaded', function () {
+        var overlay = document.getElementById('loading-ad');
+        var ins = overlay && overlay.querySelector('ins');
+        if (!ins) return;
+        ins.setAttribute('data-ad-slot', window.LOADING_AD_SLOT);
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4751583089482999';
+        s.crossOrigin = 'anonymous';
+        s.onload = function () { (window.adsbygoogle = window.adsbygoogle || []).push({}); };
+        document.head.appendChild(s);
+      });
+    }
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
